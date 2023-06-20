@@ -144,7 +144,7 @@ func (node *Node) Start(rootPageId int, sourceDocsPath string, onlyDocs bool) bo
 			}
 			if !fileInfo.IsDir() && strings.ToLower(fileInfo.Name()) == indexName {
 				hasIndex = true
-				node.indexName = indexName
+				node.indexName = fileInfo.Name()
 				break
 			}
 		}
@@ -182,7 +182,7 @@ func (node *Node) Start(rootPageId int, sourceDocsPath string, onlyDocs bool) bo
 // Tree - print out what has been generated
 func (node *Node) Tree() {
 	for path, id := range t.branches {
-		logrus.Debugf("%s/wiki/spaces/%s/pages/%s | %s ", flags.ConfluenceBaseURL, flags.ConfluenceSpaceKey, id, path)
+		logrus.Debugf("%s/wiki/spaces/%s/pages/%s | %s", flags.ConfluenceBaseURL, flags.ConfluenceSpaceKey, id, path)
 	}
 }
 
