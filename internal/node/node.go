@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	numberOfRoutines      = 10 // limit number of goroutines (to balance load on confluence API)
-	indexName             = "readme.md"
-	serializeIdsAsStrings = true
+	numberOfRoutines = 10 // limit number of goroutines (to balance load on confluence API)
+	indexName        = "readme.md"
 )
 
 var (

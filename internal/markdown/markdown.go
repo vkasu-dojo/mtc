@@ -64,12 +64,12 @@ func ParseMarkdown(rootID int, content []byte, isIndex bool, pages map[string]st
 		pageContent = fmc.Content
 	}
 
-	value, ok := f.MetaData["title"]
+	title, ok := f.MetaData["title"]
 	if !ok {
 		return nil, fmt.Errorf("markdown page parsing error - page title is not assigned via toml or # section")
 	}
 
-	if value == "" {
+	if title == "" {
 		return nil, fmt.Errorf("markdown page parsing error - page title is empty")
 	}
 
@@ -82,7 +82,7 @@ func ParseMarkdown(rootID int, content []byte, isIndex bool, pages map[string]st
 	)
 
 	preFormattedContent := md.RenderToString(pageContent)
-	f.Body = stripFrontmatterReplaceURL(preFormattedContent, isIndex, pages, nodeAbsolutePath, fileName)
+	f.Body = stripFrontmatterReplaceURL(preFormattedContent, isIndex, pages, nodeAbsolutePath, fileName, title.(string))
 
 	//TODO: Grab Authors from Git Commit
 	// if GrabAuthors {
@@ -116,7 +116,7 @@ func linkFilterLogic(item string) bool {
 // stripFrontmatterReplaceURL function takes in parent page ID and
 // markdown file contents and removes TOML frontmatter, and replaces
 // local URL with relative confluence URL
-func stripFrontmatterReplaceURL(content string, isIndex bool, pages map[string]string, nodeAbsolutePath, fileName string) []byte {
+func stripFrontmatterReplaceURL(content string, isIndex bool, pages map[string]string, nodeAbsolutePath, fileName, title string) []byte {
 	var pre string
 
 	// var frontmatter bool
@@ -140,7 +140,7 @@ func stripFrontmatterReplaceURL(content string, isIndex bool, pages map[string]s
 
 		// correct the local url paths to be absolute paths
 		if strings.Contains(lines[index], "<a href=") && !linkFilterLogic(lines[index]) {
-			lines[index] = relativeURLdetector(lines[index], pages, nodeAbsolutePath, fileName)
+			lines[index] = relativeURLdetector(lines[index], pages, nodeAbsolutePath, fileName, title)
 		}
 
 		// set up the local url image links
@@ -236,7 +236,7 @@ func updateHTMLHeaders(line string) string {
 
 // takes in the absolute URL and will match the relative link to a generated confluence page
 // if this fails, it will just return a template
-func relativeURLdetector(line string, page map[string]string, nodeAbsolutePath, fileName string) string {
+func relativeURLdetector(line string, page map[string]string, nodeAbsolutePath, fileName, title string) string {
 	const fail = `<p>[failed during relativeURLdetector]</p>`
 
 	urlLink := strings.Split(line, `</a>`)
@@ -251,7 +251,7 @@ func relativeURLdetector(line string, page map[string]string, nodeAbsolutePath, 
 		return fail
 	}
 
-	updatedURLs, links := generateRelativeURLs(sliceOne, nodeAbsolutePath, fileName)
+	updatedURLs, links := generateRelativeURLs(sliceOne, nodeAbsolutePath, fileName, title)
 
 	// replace the relative url in the item with the absolute url
 	splitItem := strings.Split(line, "<a href=")
@@ -259,7 +259,7 @@ func relativeURLdetector(line string, page map[string]string, nodeAbsolutePath, 
 	return generateLineToReturn(updatedURLs, links, splitItem, page)
 }
 
-func generateRelativeURLs(sliceOne []string, nodeAbsolutePath, fileName string) ([]string, []string) {
+func generateRelativeURLs(sliceOne []string, nodeAbsolutePath, fileName, title string) ([]string, []string) {
 	var (
 		updatedURLs []string
 		links       []string
@@ -294,14 +294,7 @@ func generateRelativeURLs(sliceOne []string, nodeAbsolutePath, fileName string) 
 			}
 
 			fileName = strings.ReplaceAll(fileName, " ", "+")
-			localLinkAbs := strings.ReplaceAll(nodeAbsolutePath, "/", "+")
-
-			link = "/" + fileName
-			if !strings.HasPrefix(localLinkAbs, "+") {
-				link += "+"
-			}
-
-			link += localLinkAbs + "#" + localLink
+			link = "/" + strings.ReplaceAll(title, " ", "+") + "#" + localLink
 		}
 
 		updatedURLs = append(updatedURLs, updatedURL)
