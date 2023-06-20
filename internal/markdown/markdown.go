@@ -325,7 +325,7 @@ func generateLineToReturn(updatedURL, links []string, splitItem []string, page m
 
 func generateLink(page map[string]string, updatedURL string, localLink string) string {
 	// to format this in confluence we must follow how confluence formats its content in the web frontend
-	a := `<a href="/wiki/spaces/` + flags.ConfluenceSpaceName + `/pages/` + page[updatedURL] + localLink + `">`
+	a := `<a href="/wiki/spaces/` + flags.ConfluenceSpaceKey + `/pages/` + page[updatedURL] + localLink + `">`
 
 	// b := `data-linked-resource-id="` + page[updatedURL] + `" `
 

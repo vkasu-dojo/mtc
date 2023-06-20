@@ -68,6 +68,23 @@ func RootNode(client *confluence.APIClient) *Node {
 // and returns bool - if true then it means pages have been created/updated/checked on confluence
 // and there is markdown content in the folder
 func (node *Node) Start(rootPageId int, sourceDocsPath string, onlyDocs bool) bool {
+	spaces, _, err := confluenceAPIClient.SpaceApi.GetSpaces(confluenceAuthContext).Keys([]string{flags.ConfluenceSpaceKey}).Execute()
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed to fetch space id from space key")
+	}
+	for _, s := range spaces.Results {
+		s := s
+		if s.Key == &flags.ConfluenceSpaceKey {
+			flags.ConfluenceSpaceID = *s.Id.Int64
+			break
+		}
+	}
+	if flags.ConfluenceSpaceID == 0 {
+		logrus.Fatal("Failed to set confluence space id")
+	}
+
+	logrus.Infof("Docs sync started from %s directory to confluence url %s and space %s", flags.SourceDocsPath, flags.ConfluenceBaseURL, flags.ConfluenceSpaceKey)
+
 	if t == nil {
 		logrus.Debug("Instantiating Tree")
 
@@ -150,7 +167,7 @@ func (node *Node) Start(rootPageId int, sourceDocsPath string, onlyDocs bool) bo
 // Tree - print out what has been generated
 func (node *Node) Tree() {
 	for path, id := range t.branches {
-		logrus.Debugf("%s | %s/wiki/spaces/%s/pages/%s", path, flags.ConfluenceBaseURL, flags.ConfluenceSpaceName, id)
+		logrus.Debugf("%s | %s/wiki/spaces/%s/pages/%s", path, flags.ConfluenceBaseURL, flags.ConfluenceSpaceKey, id)
 	}
 }
 

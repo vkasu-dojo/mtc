@@ -14,11 +14,11 @@ var (
 	// ConfluenceAPIKey is to collect external arg for api key
 	ConfluenceAPIKey string
 
-	// ConfluenceSpaceName is to collect external arg for confluence space
-	ConfluenceSpaceName string
+	// ConfluenceSpaceKey is to collect external arg for confluence space
+	ConfluenceSpaceKey string
 
 	// ConfluenceSpaceID is to collect external arg for confluence space
-	ConfluenceSpaceID int
+	ConfluenceSpaceID int64
 
 	// SourceDocsPath is to collect external arg for project path
 	SourceDocsPath string

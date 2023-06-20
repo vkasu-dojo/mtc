@@ -30,13 +30,9 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	addRequiredStringFlag(&flags.ConfluenceBaseURL, "url", "", "the url for confluence")
 	addRequiredStringFlag(&flags.ConfluenceUsername, "username", "", "the confluence API username")
-	addRequiredStringFlag(&flags.ConfluenceAPIKey, "key", "", "the confluence API Key")
-	addRequiredStringFlag(&flags.ConfluenceSpaceName, "space", "", "the confluence API Space ID String")
-	rootCmd.PersistentFlags().IntVar(&flags.ConfluenceSpaceID, "spaceid", 0, "the confluence API Space ID Number")
-	if err := rootCmd.MarkPersistentFlagRequired("spaceid"); err != nil {
-		logrus.Fatal(err)
-	}
-	addRequiredStringFlag(&flags.SourceDocsPath, "sourcedocspath", "", "the source of the documentation")
+	addRequiredStringFlag(&flags.ConfluenceAPIKey, "key", "", "the confluence API key")
+	addRequiredStringFlag(&flags.ConfluenceSpaceKey, "space", "", "the confluence space key")
+	addRequiredStringFlag(&flags.SourceDocsPath, "docspath", "", "the source directory of the documentation")
 	rootCmd.PersistentFlags().IntVar(&flags.RootPageID, "id", 0, "the id of the master page - default is 0 (root)")
 	if err := rootCmd.MarkPersistentFlagRequired("id"); err != nil {
 		logrus.Fatal(err)
@@ -55,7 +51,9 @@ var rootCmd = &cobra.Command{
 	Short: "run markdown-to-confluence",
 	Run: func(cmd *cobra.Command, args []string) {
 		logrus.Info("Markdown to Confluence starting...")
+
 		flags.ConfluenceAPIBaseURL = fmt.Sprintf("%s/wiki/api/v2", flags.ConfluenceBaseURL)
+
 		confluenceClientConfiguration := confluence.NewConfiguration()
 		confluenceClientConfiguration.Servers = confluence.ServerConfigurations{
 			confluence.ServerConfiguration{

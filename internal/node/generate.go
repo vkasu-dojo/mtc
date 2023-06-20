@@ -235,7 +235,7 @@ func (node *Node) generatePlantuml(fpath string) {
 			logrus.Debugf("check confluence page error for path [%s]: %v", nodeAbsolutePath, err)
 		}
 
-		url := flags.ConfluenceBaseURL + "/wiki/spaces/" + flags.ConfluenceSpaceName + "/pages/" + func() string {
+		url := flags.ConfluenceBaseURL + "/wiki/spaces/" + flags.ConfluenceSpaceKey + "/pages/" + func() string {
 			return strconv.Itoa(node.id)
 		}()
 
@@ -299,7 +299,7 @@ func (node *Node) createPage(parentId int, pageContents *markdown.FileContents, 
 	if !ok {
 		return 0, fmt.Errorf("title is empty")
 	}
-	createPageRequest := confluence.NewCreatePageRequest(strconv.Itoa(flags.ConfluenceSpaceID))
+	createPageRequest := confluence.NewCreatePageRequest(strconv.FormatInt(flags.ConfluenceSpaceID, 10))
 	createPageRequest.Status = &defaultPageStatus
 	createPageRequest.Title = &title
 	if !isRootPage {
