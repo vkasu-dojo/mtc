@@ -16,20 +16,19 @@ import (
 )
 
 const (
-	numberOfRoutines      = 1 // limit number of goroutines (to balance load on confluence API)
+	numberOfRoutines      = 10 // limit number of goroutines (to balance load on confluence API)
 	indexName             = "readme.md"
 	serializeIdsAsStrings = true
 )
 
 var (
-	mapSem                  = make(chan struct{}, 1)                   // for controlling access to Tree map
-	wg                      = semaphore.NewSemaphore(numberOfRoutines) // for controlling number of goroutines
-	sourceDocsRootDirectory string                                     // will contain the root folderpath of the repo
-	confluenceAPIClient     *confluence.APIClient                      // api client will be stored here
-	confluenceAuthContext   context.Context
-	t                       *Tree
-	defaultPageBodyType     string = "storage"
-	defaultPageStatus       string = "current"
+	mapSem                = make(chan struct{}, 1)                   // for controlling access to Tree map
+	wg                    = semaphore.NewSemaphore(numberOfRoutines) // for controlling number of goroutines
+	confluenceAPIClient   *confluence.APIClient                      // api client will be stored here
+	confluenceAuthContext context.Context
+	t                     *Tree
+	defaultPageBodyType   string = "storage"
+	defaultPageStatus     string = "current"
 )
 
 // Tree - capture what has been generated
@@ -102,14 +101,25 @@ func (node *Node) Start(rootPageId int, sourceDocsPath string, onlyDocs bool) bo
 
 		node.path = sourceDocsPath
 
-		sourceDocsRootDirectory = strings.ReplaceAll(sourceDocsPath, `/github/workspace/`, "")
+		dirEntries, err := os.ReadDir(sourceDocsPath)
+		if err != nil {
+			logrus.WithError(err).Debugf("Failed to traverse source directory")
+		}
+		var hasIndex bool = false
+		for _, e := range dirEntries {
+			fileInfo, err := e.Info()
+			if err != nil {
+				logrus.WithError(err).Debugf("Failed to get info for directory entry %s", e.Name())
+				continue
+			}
+			if !fileInfo.IsDir() && strings.ToLower(fileInfo.Name()) == indexName {
+				hasIndex = true
+				node.indexName = indexName
+				break
+			}
+		}
 
-		sourceDocsRootDirectory = strings.ReplaceAll(sourceDocsRootDirectory, ".", "")
-
-		sourceDocsRootDirectory = strings.ReplaceAll(sourceDocsRootDirectory, "/", "")
-		//TODO: check for readme and set it to true if exists
-		node.indexName = indexName
-		err := node.generateFolderPage(true) // create the main page first
+		err = node.generateFolderPage(hasIndex) // create the main page first
 		if err != nil {
 			return false
 		}
@@ -141,7 +151,7 @@ func (node *Node) Start(rootPageId int, sourceDocsPath string, onlyDocs bool) bo
 // Tree - print out what has been generated
 func (node *Node) Tree() {
 	for path, id := range t.branches {
-		logrus.Debug(path, "|", flags.ConfluenceBaseURL+"/wiki/spaces/"+flags.ConfluenceSpaceName+"/pages/"+id)
+		logrus.Debugf("%s | %s/wiki/spaces/%s/pages/%s", path, flags.ConfluenceBaseURL, flags.ConfluenceSpaceName, id)
 	}
 }
 

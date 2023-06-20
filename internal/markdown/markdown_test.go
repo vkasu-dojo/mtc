@@ -67,26 +67,8 @@ func TestRelativeURLdetector(t *testing.T) {
 	}
 }
 
-func TestParagraphify(t *testing.T) {
-	input := `code line a
-code line b
-code line c`
-
-	expected := `<h3>To view this try copy&amp;paste to this site: <a href="https://www.planttext.com/">PlainText UML Editor</a></h3>` + //nolint:lll // it's long test string
-		`
-<h3>Alternatively please install a <em>PlantUML Visualizer plugin</em> for Chrome or Firefox</h3>
-<pre><code class="language-+">code line a
-code line b
-code line c
-</code></pre>
-`
-
-	output := Paragraphify(input)
-	assert.Equal(t, expected, output)
-}
-
 func TestParseMarkDown(t *testing.T) {
-	link := flags.ConfluenceBaseURL + `/wiki/download/attachments//node.png`
+	link := flags.ConfluenceAPIBaseURL + `/wiki/download/attachments//node.png`
 	testInputs := []struct {
 		Name     string
 		input    []byte

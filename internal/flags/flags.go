@@ -2,7 +2,10 @@
 package flags
 
 var (
-	// ConfluenceBaseURL is the base URL for the confluence page you want the API to connect to
+	// ConfluenceAPIBaseURL is the base URL for the confluence page you want the API to connect to
+	ConfluenceAPIBaseURL string
+
+	// ConfluenceBaseURL is the base URL for the confluence page
 	ConfluenceBaseURL string
 
 	// ConfluenceUsername is to collect external arg for confluence username

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/dojo-engineering/markdown-to-confluence/internal/confluence"
@@ -54,18 +55,17 @@ var rootCmd = &cobra.Command{
 	Short: "run markdown-to-confluence",
 	Run: func(cmd *cobra.Command, args []string) {
 		logrus.Info("Markdown to Confluence starting...")
+		flags.ConfluenceAPIBaseURL = fmt.Sprintf("%s/wiki/api/v2", flags.ConfluenceBaseURL)
 		confluenceClientConfiguration := confluence.NewConfiguration()
 		confluenceClientConfiguration.Servers = confluence.ServerConfigurations{
 			confluence.ServerConfiguration{
-				URL: flags.ConfluenceBaseURL,
+				URL: flags.ConfluenceAPIBaseURL,
 			},
 		}
 		confluenceClient := confluence.NewAPIClient(confluenceClientConfiguration)
 		root := node.RootNode(confluenceClient)
 		if root.Start(flags.RootPageID, flags.SourceDocsPath, flags.OnlyDocs) {
-			//TODO: Uncomment below
-			//root.Delete()
-			logrus.Debug("Completed")
+			root.Delete()
 		}
 		logrus.Info("Markdown to Confluence completed successfully!!!")
 	},

@@ -24,12 +24,12 @@ import (
 // calls method todo.ParseGo on the file contents with the
 // file path
 func (node *Node) processGoFile(fpath string) error {
-	_, abs := node.currentPath()
+	_, nodeAbsolutePath := node.currentPath()
 
 	contents, err := os.ReadFile(filepath.Clean(fpath))
 	if err != nil {
 		return fmt.Errorf("absolute path [%s] - file [%s] - read file error: %w",
-			abs, fpath, err)
+			nodeAbsolutePath, fpath, err)
 	}
 
 	fullpath := strings.Replace(fpath, ".", "", 2) //nolint:gomnd // only want to replace max of first 2
@@ -68,7 +68,7 @@ func (node *Node) processMarkDownIndex(path string) (*markdown.FileContents, err
 
 	<-mapSem
 
-	parsedContents.MetaData["title"] = parsedContents.MetaData["title"].(string) //TODO: + " (" + nodeAbsolutePath + ")"
+	//parsedContents.MetaData["title"] = parsedContents.MetaData["title"].(string) //TODO: + " (" + nodeAbsolutePath + ")"
 
 	return parsedContents, nil
 }
@@ -77,12 +77,11 @@ func (node *Node) processMarkDownIndex(path string) (*markdown.FileContents, err
 // and parses the markdown file before calling
 // checkConfluencePages method
 func (node *Node) processMarkDown(path, fileName string) error {
-	_, abs := node.currentPath()
+	_, nodeAbsolutePath := node.currentPath()
 
 	contents, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
-		return fmt.Errorf("absolute path [%s] - file [%s] - read file error: %w",
-			abs, path, err)
+		return fmt.Errorf("absolute path [%s] - file [%s] - read file error: %w", nodeAbsolutePath, path, err)
 	}
 
 	mapSem <- struct{}{}
@@ -93,22 +92,18 @@ func (node *Node) processMarkDown(path, fileName string) error {
 		}
 
 		return node.root.id
-	}(), contents, node.indexPage,
-		node.treeLink.branches, node.path, abs, fileName)
+	}(), contents, node.indexPage, node.treeLink.branches, node.path, nodeAbsolutePath, fileName)
 	if err != nil {
 		<-mapSem
 		return fmt.Errorf("absolute path [%s] - file [%s] - parse markdown error: %w",
-			abs, path, err)
+			nodeAbsolutePath, path, err)
 	}
 
 	<-mapSem
 
-	//parsedContents.MetaData["title"] = parsedContents.MetaData["title"].(string) //TODO: + " (" + abs + ")"
-
 	err = node.checkConfluencePages(parsedContents, path)
 	if err != nil {
-		return fmt.Errorf("absolute path [%s] - file [%s] - confluence check error: %w",
-			abs, path, err)
+		return fmt.Errorf("absolute path [%s] - file [%s] - confluence check error: %w", nodeAbsolutePath, path, err)
 	}
 
 	return nil
@@ -117,7 +112,7 @@ func (node *Node) processMarkDown(path, fileName string) error {
 // uploadFile method takes in file and
 // uploads the file to a page by parent page ID (node.root.id)
 func (node *Node) uploadFile(path string, isIndexPage bool) {
-	_, abs := node.currentPath()
+	_, nodeAbsolutePath := node.currentPath()
 
 	var pageId int
 
@@ -130,7 +125,7 @@ func (node *Node) uploadFile(path string, isIndexPage bool) {
 	err := node.UploadAttachment(filepath.Clean(path), pageId)
 	if err != nil {
 		logrus.Debugf("absolute path [%s] - local path [%s] - file upload error: %v",
-			path, abs, err)
+			path, nodeAbsolutePath, err)
 	}
 }
 
@@ -199,7 +194,7 @@ func newfileUploadRequest(uri string, paramName, path string) (*http.Request, er
 // UploadAttachment to a page identify by page ID
 // you need the page ID to upload the attachment(file path)
 func (node *Node) UploadAttachment(filename string, id int) error {
-	targetURL := fmt.Sprintf(flags.ConfluenceBaseURL+"/wiki/rest/api/content/%d/child/attachment", id)
+	targetURL := fmt.Sprintf("%s/wiki/rest/api/content/%d/child/attachment", flags.ConfluenceBaseURL, id)
 
 	req, err := newfileUploadRequest(targetURL, "file", filename)
 	if err != nil {

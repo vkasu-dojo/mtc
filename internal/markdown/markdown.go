@@ -6,24 +6,20 @@ package markdown
 import (
 	"bytes"
 	"fmt"
-	"log"
-	"os"
-	"os/exec"
-	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/dojo-engineering/markdown-to-confluence/internal/flags"
 	"github.com/gohugoio/hugo/parser/pageparser"
+	"github.com/sirupsen/logrus"
 	m "gitlab.com/golang-commonmark/markdown"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
-// GrabAuthors - do we want to collect authors?
-var (
-	GrabAuthors bool
-)
+// // GrabAuthors - do we want to collect authors?
+// var (
+// 	GrabAuthors bool
+// )
 
 // FileContents contains information from a file after being parsed from markdown.
 // `Metadata` in the format of a `map[string]interface{}` this can contain title, description, slug etc.
@@ -31,14 +27,6 @@ var (
 type FileContents struct {
 	MetaData map[string]interface{}
 	Body     []byte
-}
-
-// grabtitle function collects the filename of a markdown file
-// and returns it as a string
-//
-//nolint:deadcode,unused // not used anymore
-func grabtitle(path string) string {
-	return strings.Split(path, "/")[len(strings.Split(path, "/"))-1]
 }
 
 // newFileContents function creates a new filecontents object
@@ -49,145 +37,32 @@ func newFileContents() *FileContents {
 	return &f
 }
 
-// Paragraphify takes in a .puml file contents and returns
-// a formatted HTML page as a string
-// currently unused
-func Paragraphify(content string) string {
-	var pre string
-	pre += "### To view this try copy&paste to this site: [PlainText UML Editor](https://www.planttext.com/) \n"
-	pre += "### Alternatively please install a _PlantUML Visualizer plugin_ for Chrome or Firefox \n"
-	pre += "``` + \n"
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	content = strings.ReplaceAll(content, "\r", "\n")
-	lines := strings.Split(content, "\n")
-
-	for index := range lines {
-		pre += lines[index] + "\n"
-	}
-
-	pre += "```"
-
-	md := m.New(
-		m.HTML(true),
-		m.Tables(true),
-		m.Linkify(true),
-		m.Typographer(false),
-		m.XHTMLOutput(true),
-	)
-
-	preformatted := md.RenderToString([]byte(pre))
-
-	return preformatted
-}
-
-type author struct {
-	name    string
-	howmany int
-}
-
-type authors []author // not using a map so the order of authors can be maintained
-
-func (a *authors) append(item string) {
-	au := *a
-	var exists bool
-	for index := range au {
-		if au[index].name == item {
-			au[index].howmany++
-			exists = true
-			break
-		}
-	}
-
-	if !exists {
-		au = append(au, author{
-			name:    item,
-			howmany: 1,
-		})
-	}
-
-	*a = au
-}
-
-func (a *authors) sort() {
-	au := *a
-
-	sort.Slice(au, func(i, j int) bool {
-		return au[i].howmany > au[j].howmany
-	})
-
-	*a = au
-}
-
-// use git to capture authors by username & email & commits
-//
-//nolint:gosec // is fine
-func capGit(path string) string {
-	here, _ := os.Getwd()
-	log.Println("collecting authorship for ", path)
-	git := exec.Command("git", "log", "--all", `--format='%an | %ae'`, "--", here)
-
-	out, err := git.CombinedOutput()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	a := authors{}
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		l := strings.ReplaceAll(line, `'`, "")
-		a.append(l)
-	}
-
-	a.sort()
-
-	// to let the output be displayed in confluence - wrapping it in code block
-	output := `<pre><code>
-[authors | email addresses | how many commits]
-`
-
-	index := 0
-	for _, author := range a {
-		if author.name == "" {
-			continue
-		}
-
-		no := strconv.Itoa(author.howmany)
-
-		if index == 0 {
-			output += author.name + " - total commits: " + no
-		} else {
-			output += `
-` + author.name + " - total commits: " + no
-		}
-
-		index++
-	}
-
-	output += `
-</code></pre>`
-
-	return output
-}
-
 // ParseMarkdown function uses external parsing library to grab markdown contents
 // and return a filecontents object
-func ParseMarkdown(rootID int, content []byte, isIndex bool,
-	pages map[string]string, path, abs, fileName string) (*FileContents, error) {
+func ParseMarkdown(rootID int, content []byte, isIndex bool, pages map[string]string, path, nodeAbsolutePath, fileName string) (*FileContents, error) {
 	r := bytes.NewReader(content)
 	f := newFileContents()
+	var frontMatterExists bool
 	fmc, err := pageparser.ParseFrontMatterAndContent(r)
 	if err != nil {
-		log.Println("issue parsing frontmatter - (using # title instead): %w", err)
+		logrus.WithError(err).Debugf("Issue with parsing frontmatter - (using # title instead)")
 	} else if len(fmc.FrontMatter) != 0 {
+		frontMatterExists = true
 		f.MetaData = fmc.FrontMatter
 	}
 
 	// if the file name is readme.md then then the space should be named after the final folder
-	if strings.ToLower(fileName) == "readme.md" {
+	if strings.EqualFold(fileName, "readme.md") {
 		fileName = strings.Split(path, "/")[len(strings.Split(path, "/"))-1]
 	}
-	//TODO:
-	//f.MetaData["title"] = fileName
+	var pageContent []byte
+	if !frontMatterExists {
+		f.MetaData["title"] = fileName
+		pageContent = content
+	} else {
+		//Content without frontmatter
+		pageContent = fmc.Content
+	}
 
 	value, ok := f.MetaData["title"]
 	if !ok {
@@ -206,12 +81,13 @@ func ParseMarkdown(rootID int, content []byte, isIndex bool,
 		m.XHTMLOutput(true),
 	)
 
-	preformatted := md.RenderToString(content)
-	f.Body = stripFrontmatterReplaceURL(preformatted, isIndex, pages, abs, fileName)
+	preFormattedContent := md.RenderToString(pageContent)
+	f.Body = stripFrontmatterReplaceURL(preFormattedContent, isIndex, pages, nodeAbsolutePath, fileName)
 
-	if GrabAuthors {
-		f.Body = append(f.Body, []byte(capGit(path))...)
-	}
+	//TODO: Grab Authors from Git Commit
+	// if GrabAuthors {
+	// 	f.Body = append(f.Body, []byte(capGit(path))...)
+	// }
 
 	return f, nil
 }
@@ -240,19 +116,18 @@ func linkFilterLogic(item string) bool {
 // stripFrontmatterReplaceURL function takes in parent page ID and
 // markdown file contents and removes TOML frontmatter, and replaces
 // local URL with relative confluence URL
-func stripFrontmatterReplaceURL(content string,
-	isIndex bool, pages map[string]string, abs, fileName string) []byte {
+func stripFrontmatterReplaceURL(content string, isIndex bool, pages map[string]string, nodeAbsolutePath, fileName string) []byte {
 	var pre string
 
-	var frontmatter bool
+	// var frontmatter bool
 
 	lines := strings.Split(content, "\n")
 
 	for index := range lines {
-		if strings.Contains(lines[index], "+++") {
-			frontmatter = flip(frontmatter)
-			continue
-		}
+		// if strings.Contains(lines[index], "+++") {
+		// 	frontmatter = flip(frontmatter)
+		// 	continue
+		// }
 
 		// header lines are converted to ProperCase for confluence local linking
 		htmlHeaders := []string{"<h1>", "<h2>", "<h3>", "<h4>", "<h5>", "<h6>"}
@@ -265,17 +140,17 @@ func stripFrontmatterReplaceURL(content string,
 
 		// correct the local url paths to be absolute paths
 		if strings.Contains(lines[index], "<a href=") && !linkFilterLogic(lines[index]) {
-			lines[index] = relativeURLdetector(lines[index], pages, abs, fileName)
+			lines[index] = relativeURLdetector(lines[index], pages, nodeAbsolutePath, fileName)
 		}
 
 		// set up the local url image links
 		if strings.Contains(lines[index], "<img src=") {
-			lines[index] = URLConverter(pages, lines[index], isIndex, abs)
+			lines[index] = URLConverter(pages, lines[index], isIndex, nodeAbsolutePath)
 		}
 
-		if !frontmatter {
-			pre += lines[index] + "\n"
-		}
+		// if !frontmatter {
+		pre += lines[index] + "\n"
+		// }
 	}
 
 	pre = strings.TrimSpace(pre)
@@ -354,64 +229,37 @@ func updateHTMLHeaders(line string) string {
 	return line
 }
 
-// flip function returns the opposite of bool
-func flip(b bool) bool {
-	return !b
-}
-
-//nolint:unused // not used anymore
-type fpage struct {
-	distance       int
-	sim            int
-	confluencepage string
-	url            string
-}
-
-//nolint:unused // not used anymore
-type pages []fpage
-
-//nolint:unused // not used anymore
-func (p pages) filter() fpage {
-	max := p[0].sim
-	i := 0
-	for index := range p {
-		if p[index].distance == p[0].distance {
-			if p[index].sim > max {
-				i = index
-				max = p[index].sim
-			}
-		}
-	}
-
-	return p[i]
-}
+// // flip function returns the opposite of bool
+// func flip(b bool) bool {
+// 	return !b
+// }
 
 // takes in the absolute URL and will match the relative link to a generated confluence page
 // if this fails, it will just return a template
-func relativeURLdetector(item string, page map[string]string, abs, fileName string) string {
+func relativeURLdetector(line string, page map[string]string, nodeAbsolutePath, fileName string) string {
 	const fail = `<p>[failed during relativeURLdetector]</p>`
 
-	urlLink := strings.Split(item, `</a>`)
+	urlLink := strings.Split(line, `</a>`)
 
 	originalURLslice := strings.Split(strings.ReplaceAll(urlLink[0], "<p>", ""), `>`)
 	if len(originalURLslice) <= 1 {
 		return fail
 	}
 
-	sliceOne := strings.Split(item, `<a href="`)
+	sliceOne := strings.Split(line, `<a href="`)
 	if len(sliceOne) <= 1 {
 		return fail
 	}
 
-	updatedURLs, links := generateRelativeURLs(sliceOne, abs, fileName)
+	updatedURLs, links := generateRelativeURLs(sliceOne, nodeAbsolutePath, fileName)
 
 	// replace the relative url in the item with the absolute url
-	splitItem := strings.Split(item, "<a href=")
+	splitItem := strings.Split(line, "<a href=")
 
 	return generateLineToReturn(updatedURLs, links, splitItem, page)
 }
 
-func generateRelativeURLs(sliceOne []string, abs, fileName string) ([]string, []string) {
+func generateRelativeURLs(sliceOne []string, nodeAbsolutePath, fileName string) ([]string, []string) {
 	var (
 		updatedURLs []string
 		links       []string
@@ -425,7 +273,7 @@ func generateRelativeURLs(sliceOne []string, abs, fileName string) ([]string, []
 		url := strings.Split(sliceOne[i], `"`)[0] // the local/relative URL for the page
 
 		// create the absolute url
-		updatedURL, localLink := convertRelativeToAbsoluteURL(abs, url)
+		updatedURL, localLink := convertRelativeToAbsoluteURL(nodeAbsolutePath, url)
 
 		// confluence is case sensitive - headers are saved using proper case (i.e. So The Title Is Always Like This)
 		caser := cases.Title(language.English)
@@ -446,7 +294,7 @@ func generateRelativeURLs(sliceOne []string, abs, fileName string) ([]string, []
 			}
 
 			fileName = strings.ReplaceAll(fileName, " ", "+")
-			localLinkAbs := strings.ReplaceAll(abs, "/", "+")
+			localLinkAbs := strings.ReplaceAll(nodeAbsolutePath, "/", "+")
 
 			link = "/" + fileName
 			if !strings.HasPrefix(localLinkAbs, "+") {
@@ -484,137 +332,20 @@ func generateLineToReturn(updatedURL, links []string, splitItem []string, page m
 
 func generateLink(page map[string]string, updatedURL string, localLink string) string {
 	// to format this in confluence we must follow how confluence formats its content in the web frontend
-	a := `<a href="/wiki/spaces/` + flags.ConfluenceSpaceName + `/pages/` + page[updatedURL] + localLink + `" `
+	a := `<a href="/wiki/spaces/` + flags.ConfluenceSpaceName + `/pages/` + page[updatedURL] + localLink + `">`
 
-	b := `data-linked-resource-id="` + page[updatedURL] + `" `
+	// b := `data-linked-resource-id="` + page[updatedURL] + `" `
 
-	c := `data-linked-resource-type="page">`
+	// c := `data-linked-resource-type="page">`
 
-	return a + b + c
-}
-
-//nolint:unused // not used anymore
-type fielditem struct {
-	item   string
-	index1 int
-	index2 int
-}
-
-//nolint:unused // not used anymore
-type fielditems []fielditem
-
-//nolint:unused // not used anymore
-func (f fielditems) validate() bool {
-	if len(f) == 1 {
-		return true
-	}
-
-	for index := len(f) - 1; index > 0; index-- {
-		if f[index].index1-f[index-1].index1 != 1 {
-			return false
-		}
-
-		if f[index].index2-f[index-1].index2 != 1 {
-			return false
-		}
-	}
-
-	return true
-}
-
-// check how many fields exist in two strings (split by '/')
-//
-//nolint:deadcode,unused // not used anymore
-func exists(a, b string) int {
-	var f fielditems
-	similarity := 0
-	a = strings.ReplaceAll(a, "../", "")
-	b = strings.ReplaceAll(b, "../", "")
-	a = strings.ReplaceAll(a, ".", "")
-	b = strings.ReplaceAll(b, ".", "")
-	aa := strings.Split(a, "/")
-	bb := strings.Split(b, "/")
-	for index, line := range aa {
-		for index2, line2 := range bb {
-			if line == line2 {
-				similarity++
-				f = append(f, fielditem{
-					item:   line,
-					index1: index,
-					index2: index2,
-				})
-			}
-		}
-	}
-
-	sort.Slice(f, func(i, j int) bool {
-		return f[i].index1 < f[j].index1
-	})
-
-	/*
-		INVALID
-		a) ../node/testfolder/folder
-		b ../node/folder/testfolder
-
-		VALID
-		a) ../../node/testfolder/folder
-		b) node/testfolder/folder
-	*/
-
-	if f.validate() {
-		return similarity
-	}
-
-	return 0
-}
-
-// levenshtein fuzzy logic algorithm to determine similarity of two strings
-//
-//nolint:deadcode,unused // not used anymore
-func levenshtein(str1, str2 []rune) int {
-	s1len := len(str1)
-	s2len := len(str2)
-	column := make([]int, len(str1)+1)
-
-	for y := 1; y <= s1len; y++ {
-		column[y] = y
-	}
-	for x := 1; x <= s2len; x++ {
-		column[0] = x
-		lastkey := x - 1
-		for y := 1; y <= s1len; y++ {
-			oldkey := column[y]
-			var incr int
-			if str1[y-1] != str2[x-1] {
-				incr = 1
-			}
-
-			column[y] = minimum(column[y]+1, column[y-1]+1, lastkey+incr)
-			lastkey = oldkey
-		}
-	}
-	return column[s1len]
-}
-
-//nolint:unused // not used anymore
-func minimum(a, b, c int) int {
-	if a < b {
-		if a < c {
-			return a
-		}
-	} else {
-		if b < c {
-			return b
-		}
-	}
-	return c
+	return a //+ b + c
 }
 
 // URLConverter function for images to be loaded in to confluence page
 // (they must be in same directory as markdown to work)
 // this function replaces local url paths in html img links
 // with a confluence path for folder page attachments on parent page
-func URLConverter(page map[string]string, item string, isindex bool, abs string) string {
+func URLConverter(page map[string]string, item string, isindex bool, nodeAbsolutePath string) string {
 	sliceOne := strings.Split(item, `<img src="`)
 
 	if len(sliceOne) > 1 {
@@ -624,7 +355,7 @@ func URLConverter(page map[string]string, item string, isindex bool, abs string)
 			attachmentFileName := sliceTwo[0]
 
 			// create the absolute url
-			updatedURL, _ := convertRelativeToAbsoluteURL(abs, attachmentFileName)
+			updatedURL, _ := convertRelativeToAbsoluteURL(nodeAbsolutePath, attachmentFileName)
 
 			// split the path so we can rip out the file name
 			splitURL := strings.Split(updatedURL, "/")
@@ -657,7 +388,7 @@ func URLConverter(page map[string]string, item string, isindex bool, abs string)
 
 // convertRelativeToAbsoluteURL function takes in a relative url, and generates
 // the correct absolute url based on the file path passed in
-func convertRelativeToAbsoluteURL(abs, url string) (string, string) {
+func convertRelativeToAbsoluteURL(nodeAbsolutePath, url string) (string, string) {
 	var localLink string
 
 	// split on #
@@ -668,10 +399,10 @@ func convertRelativeToAbsoluteURL(abs, url string) (string, string) {
 	}
 
 	url = strings.ReplaceAll(url, "%20", " ")
-	abs = strings.ReplaceAll(abs, "%20", " ")
+	nodeAbsolutePath = strings.ReplaceAll(nodeAbsolutePath, "%20", " ")
 
 	splitRelativeURL := strings.Split(url, "/")
-	splitAbsoluteURL := strings.Split(abs, "/")
+	splitAbsoluteURL := strings.Split(nodeAbsolutePath, "/")
 
 	var firstFolder int
 
@@ -697,3 +428,93 @@ func convertRelativeToAbsoluteURL(abs, url string) (string, string) {
 	// append to the end of the absolute url
 	return strings.Join(append(splitAbsoluteURL, splitRelativeURL[firstFolder:]...), "/"), localLink
 }
+
+//TODO: Grab Authors from Git Commit
+// type author struct {
+// 	name    string
+// 	howmany int
+// }
+
+// type authors []author // not using a map so the order of authors can be maintained
+
+// func (a *authors) append(item string) {
+// 	au := *a
+// 	var exists bool
+// 	for index := range au {
+// 		if au[index].name == item {
+// 			au[index].howmany++
+// 			exists = true
+// 			break
+// 		}
+// 	}
+
+// 	if !exists {
+// 		au = append(au, author{
+// 			name:    item,
+// 			howmany: 1,
+// 		})
+// 	}
+
+// 	*a = au
+// }
+
+// func (a *authors) sort() {
+// 	au := *a
+
+// 	sort.Slice(au, func(i, j int) bool {
+// 		return au[i].howmany > au[j].howmany
+// 	})
+
+// 	*a = au
+// }
+
+// // use git to capture authors by username & email & commits
+// //
+// //nolint:gosec // is fine
+// func capGit(path string) string {
+// 	here, _ := os.Getwd()
+// 	log.Println("collecting authorship for ", path)
+// 	git := exec.Command("git", "log", "--all", `--format='%an | %ae'`, "--", here)
+
+// 	out, err := git.CombinedOutput()
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	a := authors{}
+// 	lines := strings.Split(string(out), "\n")
+// 	for _, line := range lines {
+// 		l := strings.ReplaceAll(line, `'`, "")
+// 		a.append(l)
+// 	}
+
+// 	a.sort()
+
+// 	// to let the output be displayed in confluence - wrapping it in code block
+// 	output := `<pre><code>
+// [authors | email addresses | how many commits]
+// `
+
+// 	index := 0
+// 	for _, author := range a {
+// 		if author.name == "" {
+// 			continue
+// 		}
+
+// 		no := strconv.Itoa(author.howmany)
+
+// 		if index == 0 {
+// 			output += author.name + " - total commits: " + no
+// 		} else {
+// 			output += `
+// ` + author.name + " - total commits: " + no
+// 		}
+
+// 		index++
+// 	}
+
+// 	output += `
+// </code></pre>`
+
+// 	return output
+// }

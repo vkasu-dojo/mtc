@@ -140,7 +140,7 @@ func (node *Node) generateFolderPage(hasIndex bool) error {
 
 	pageContents := &markdown.FileContents{
 		MetaData: map[string]interface{}{
-			"title": nodeDirectoryName, //TODO + " (" + nodeAbsolutePath + ")",
+			"title": nodeDirectoryName,
 		},
 		Body: []byte(`<p>Welcome to the '<b>` + nodeDirectoryName + `</b>' folder of this code repo.</p>
 		<p>This folder full path in the repo is: ` + nodeAbsolutePath + `</p>
@@ -164,8 +164,9 @@ func (node *Node) generateFolderPage(hasIndex bool) error {
 // string 2 - the absolute filepath to the node dir from root dir
 func (node *Node) currentPath() (string, string) {
 	fullDir := strings.ReplaceAll(node.path, "/github/workspace/", "")
-	fullDir = strings.ReplaceAll(fullDir, ".", "")
-	fullDir = strings.TrimPrefix(fullDir, "/")
+	//TODO: Skip replacing local directory
+	// fullDir = strings.ReplaceAll(fullDir, ".", "")
+	// fullDir = strings.TrimPrefix(fullDir, "/")
 
 	dirList := strings.Split(fullDir, "/")
 	dir := dirList[len(dirList)-1]
@@ -182,17 +183,17 @@ func (node *Node) generatePlantuml(fpath string) {
 
 	const iterateThroughSubFolders = false // we want to just generate plantuml for the folder
 
-	path, abs := node.currentPath()
+	path, nodeAbsolutePath := node.currentPath()
 
 	if node.root.root == nil {
-		path = sourceDocsRootDirectory
+		path = strings.ReplaceAll(strings.ReplaceAll(nodeAbsolutePath, ".", ""), "/", "")
 	}
 
 	logrus.Debugf("generating plantuml text for %s", path)
 
 	result, err := goplantuml.NewClassDiagram([]string{fpath}, []string{}, iterateThroughSubFolders)
 	if err != nil {
-		logrus.Debugf("[generate diagram] plantuml file generation error for path [%s]: %v", abs, err)
+		logrus.Debugf("[generate diagram] plantuml file generation error for path [%s]: %v", nodeAbsolutePath, err)
 		return
 	}
 
@@ -206,7 +207,7 @@ func (node *Node) generatePlantuml(fpath string) {
 
 		writer, err = os.Create(node.path + "/" + filename + ".puml") //nolint:gosec // file created
 		if err != nil {
-			logrus.Debugf("[create file] plantuml file generation error for path [%s]: %v", abs, err)
+			logrus.Debugf("[create file] plantuml file generation error for path [%s]: %v", nodeAbsolutePath, err)
 			return
 		}
 
@@ -214,25 +215,24 @@ func (node *Node) generatePlantuml(fpath string) {
 
 		err := node.generatePlantumlImage(node.path + "/" + filename + ".puml")
 		if err != nil {
-			logrus.Debugf("generatePlantumlImage error for path [%s]: %v", abs, err)
+			logrus.Debugf("generatePlantumlImage error for path [%s]: %v", nodeAbsolutePath, err)
 			return
 		}
 
-		logrus.Debugf("uploading generated png file [%s] to page id of [%d]",
-			node.path+"/"+filename+".png", node.id)
+		logrus.Debugf("uploading generated png file [%s] to page id of [%d]", node.path+"/"+filename+".png", node.id)
 
 		node.uploadFile(node.path+"/"+filename+".png", node.indexPage)
 
 		masterpagecontents := markdown.FileContents{
 			MetaData: map[string]interface{}{
-				"title": "plantuml-" + path + " (" + abs + ")",
+				"title": "plantuml-" + path + " (" + nodeAbsolutePath + ")",
 			},
 			Body: buf.Bytes(),
 		}
 
 		err = node.checkConfluencePages(&masterpagecontents, node.path+"/"+filename+".png")
 		if err != nil {
-			logrus.Debugf("check confluence page error for path [%s]: %v", abs, err)
+			logrus.Debugf("check confluence page error for path [%s]: %v", nodeAbsolutePath, err)
 		}
 
 		url := flags.ConfluenceBaseURL + "/wiki/spaces/" + flags.ConfluenceSpaceName + "/pages/" + func() string {

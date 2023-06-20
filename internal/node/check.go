@@ -142,7 +142,7 @@ func (node *Node) checkIfGoFile(name string) {
 
 // checkForImages method checks to see if the file is an image file
 func (node *Node) checkForImages(name string, checking bool) bool {
-	validFiles := []string{".png", ".jpg", ".jpeg", ".gif"}
+	validFiles := []string{".png", ".jpg", ".jpeg", ".gif", ".svg"}
 
 	for index := range validFiles {
 		if strings.HasSuffix(strings.ToLower(name), validFiles[index]) {
@@ -188,9 +188,8 @@ func (node *Node) checkConfluencePages(pageContents *markdown.FileContents, file
 		return fmt.Errorf("checkConfluencePages error for folder path [%s]: the markdown file was nil", nodeAbsolutePath)
 	}
 
-	pageTitle := pageContents.MetaData["title"].(string) //TODO: strings.Join(strings.Split(pageContents.MetaData["title"].(string), " "), "+")
+	pageTitle := pageContents.MetaData["title"].(string)
 
-	//TODO: page id
 	var parentPageId int64
 	if node.root != nil {
 		parentPageId = int64(node.root.id)
@@ -205,6 +204,7 @@ func (node *Node) checkConfluencePages(pageContents *markdown.FileContents, file
 	var page *confluence.ChildPage
 	if r.StatusCode == http.StatusOK {
 		for _, p := range pages.Results {
+			p := p
 			if strings.EqualFold(pageTitle, *p.Title) {
 				page = &p
 			}
