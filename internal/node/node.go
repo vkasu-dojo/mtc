@@ -182,7 +182,7 @@ func (node *Node) Start(rootPageId int, sourceDocsPath string, onlyDocs bool) bo
 // Tree - print out what has been generated
 func (node *Node) Tree() {
 	for path, id := range t.branches {
-		logrus.Debugf("%s | %s/wiki/spaces/%s/pages/%s", path, flags.ConfluenceBaseURL, flags.ConfluenceSpaceKey, id)
+		logrus.Debugf("%s/wiki/spaces/%s/pages/%s | %s ", flags.ConfluenceBaseURL, flags.ConfluenceSpaceKey, id, path)
 	}
 }
 
