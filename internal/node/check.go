@@ -282,7 +282,7 @@ func (node *Node) updatePage(pageContents *markdown.FileContents, page *confluen
 	}
 	pageBody := string(pageContents.Body)
 	if *existingPage.Body.Storage.Value == pageBody {
-		logrus.Debug("No changes to file %s", nodeAbsolutePath)
+		logrus.Debugf("No changes to file %s", nodeAbsolutePath)
 		return nil
 	}
 
