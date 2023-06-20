@@ -27,7 +27,7 @@ inputs:
     default: ""
 runs:
   using: docker
-  image: build/Dockerfile
+  image: Dockerfile
   args:
     - --url
     - ${{ inputs.url }}
