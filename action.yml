@@ -38,6 +38,6 @@ runs:
     - --space
     - ${{ inputs.space }}
     - --docspath
-    - ${{ inputs.repo }}
+    - ${{ inputs.docspath }}
     - --id
     - ${{ inputs.parentID }}
