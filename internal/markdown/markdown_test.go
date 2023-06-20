@@ -14,6 +14,7 @@ func TestRelativeURLdetector(t *testing.T) {
 		arg2           map[string]string
 		arg3           string
 		filename       string
+		title          string
 		expectedoutput string
 	}{
 		{
@@ -27,8 +28,9 @@ func TestRelativeURLdetector(t *testing.T) {
 			},
 			arg3:     "/absolute/path",
 			filename: "file",
+			title:    "file",
 			//nolint:lll /// test data
-			expectedoutput: `<p><a href="/wiki/spaces//pages/4" data-linked-resource-id="4" data-linked-resource-type="page">a_page</a></p>`,
+			expectedoutput: `<p><a href="/wiki/spaces//pages/4">a_page</a></p>`,
 		},
 		{
 			name: "distant markdown link most likely",
@@ -40,8 +42,9 @@ func TestRelativeURLdetector(t *testing.T) {
 			},
 			arg3:     "/absolute/path",
 			filename: "file",
+			title:    "file",
 			//nolint:lll /// test data
-			expectedoutput: `<p><a href="/wiki/spaces//pages/2" data-linked-resource-id="2" data-linked-resource-type="page">a_page</a></p>`,
+			expectedoutput: `<p><a href="/wiki/spaces//pages/2">a_page</a></p>`,
 		},
 		{
 			name: "relative link in same file",
@@ -54,15 +57,16 @@ func TestRelativeURLdetector(t *testing.T) {
 			},
 			arg3:     "/absolute/path",
 			filename: "file.md",
+			title:    "file",
 			//nolint:lll /// test data
-			expectedoutput: `<p><a href="/wiki/spaces//pages/4/file.md+absolute+path#Test" data-linked-resource-id="4" data-linked-resource-type="page">a_page</a></p>`,
+			expectedoutput: `<p><a href="/wiki/spaces//pages/4/file#Test">a_page</a></p>`,
 		},
 	}
 
 	for _, test := range testInputs {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expectedoutput, relativeURLdetector(test.arg1, test.arg2, test.arg3, test.filename))
+			assert.Equal(t, test.expectedoutput, relativeURLdetector(test.arg1, test.arg2, test.arg3, test.filename, test.title))
 		})
 	}
 }
@@ -114,13 +118,13 @@ This Action will trawl through a repository.`),
 
 func TestParseMarkdown_HappyPath(t *testing.T) {
 	testContent := []byte(`
-+++
-categories = ["Development", "Github Actions"]
-date = "2021-03-10"
-description = "A guide on how to use the markdown to confluence action"
-slug = "markdown-to-confluence-guide"
-title = "Markdown to Confluence Action Guide"
-+++
+---
+categories: ["Development", "Github Actions"]
+date: "2021-03-10"
+description: "A guide on how to use the markdown to confluence action"
+slug: "markdown-to-confluence-guide"
+title: "Markdown to Confluence Action Guide"
+---
 
 # Test Content
 test description`)
@@ -131,7 +135,7 @@ test description`)
 			"date":        "2021-03-10",
 			"description": "A guide on how to use the markdown to confluence action",
 			"slug":        "markdown-to-confluence-guide",
-			"title":       "filename",
+			"title":       "Markdown to Confluence Action Guide",
 		},
 		Body: []byte(`<h1>Test Content</h1>
 <p>test description</p>`),
