@@ -151,6 +151,7 @@ func (node *Node) Start(rootPageId int, sourceDocsPath string, onlyDocs bool) bo
 
 		err = node.generateFolderPage(hasIndex) // create the main page first
 		if err != nil {
+			logrus.WithError(err).Errorf("Failed to generate folder page for %s", node.path)
 			return false
 		}
 
